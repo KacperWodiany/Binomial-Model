@@ -25,19 +25,24 @@ class BinomialTree:
         # drift term is excluded from cumulative summing to prevent adding it to initial price
         tree_gen_mx = np.cumsum(self.std * tree_gen_mx, axis=1)
         tree_gen_mx = self.s0 / self.num0 * np.exp(tree_gen_mx)
-        # add drift term
+        # apply dividend assumption
+        tree_gen_mx[:, self.div_periods] = tree_gen_mx[:, self.div_periods] / (1 + self.div_yield)
+        # add drift term and assign attribute
         self.tree = tree_gen_mx * np.exp((self.mean - self.rate) * np.arange(0, self.periods + 1))
 
     def _find_emm(self):
-        # TODO: Take dividend yield into account
-        self.q = (np.exp(self.rate - self.mean) - np.exp(-self.std)) / (np.exp(self.std) - np.exp(-self.std))
+        dividends = np.zeros(self.periods)
+        dividends[self.div_periods] = self.div_yield
+        self.q = self._find_probability(dividends=dividends)
+
+    def _find_probability(self, dividends):
+        return ((np.exp(self.rate + np.log(1 + dividends) - self.mean) - np.exp(-self.std))
+                / (np.exp(self.std) - np.exp(-self.std)))
 
     def _generate_increments(self):
         increments = np.triu(np.ones((self.periods + 1, self.periods + 1)), k=0)
         # fill diagonal with sequence 0, -1, -2, ..., -T
         np.fill_diagonal(increments, -np.arange(0, self.periods + 1))
-        # apply dividend assumption
-        increments[:, self.div_periods] -= np.log(1 + self.div_yield) / self.std
         return increments
 
     def calculate_U(self, payoff):
@@ -46,7 +51,7 @@ class BinomialTree:
         # TODO: Avoid for-loop.
         for t in range(1, self.periods + 1):
             # calculate expectation of future value of Snell's Envelope - E(U_{t+1}|F_t)
-            prev_u = self.q * u[:-1, -t] + (1 - self.q) * u[1:, -t]
+            prev_u = self.q[-t + 1] * u[:-1, -t] + (1 - self.q[-t + 1]) * u[1:, -t]
             # fill redundant entries with 0
             u[:, -(t + 1)] = np.hstack((prev_u, 0))
         return np.maximum(u, h)
@@ -55,5 +60,12 @@ class BinomialTree:
         # payoff function must handle 2-D array
         return payoff(self.tree)
 
-    def get_prices(self, omega):
-        return tree_paths.extract(self.tree, omega)
+    def calculate_expectation(self, omega, periods=None, tree=None):
+        if tree is None:
+            tree = self.tree
+        if periods is None:
+            periods = np.arange(self.periods + 1)
+        path = tree_paths.extract_with_neighbors(tree, omega)[:, periods]
+        path = -np.sort(-path[:, 1:], axis=0)
+        probabilities = np.array([self.q, 1 - self.q])
+        return np.sum(probabilities * path, axis=0), path, probabilities
