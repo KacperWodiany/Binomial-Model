@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 
 from tree_paths import extract as extract_path
@@ -39,3 +41,106 @@ class Analyzer:
             tau_max = len(excess) - 1
 
         return np.argwhere(payoff == envelope), tau_max
+
+
+def european_discount(func):
+    @functools.wraps(func)
+    def wrapper_european_discount(asset_price, rate, **kwargs):
+        # strike is  the only obligatory keyword argument
+        kwargs['strike'] /= np.exp(rate * (asset_price.shape[0] - 1))
+        return func(asset_price, rate, **kwargs)
+
+    return wrapper_european_discount
+
+
+def american_discount(func):
+    @functools.wraps(func)
+    def wrapper_american_discount(asset_price, rate, **kwargs):
+        # strike is  the only obligatory keyword argument
+        size = asset_price.shape[0]
+        kwargs['strike'] = kwargs['strike'] / np.exp(rate * np.array([np.arange(size), ] * size))
+        return func(asset_price, rate, **kwargs)
+
+    return wrapper_american_discount
+
+
+@european_discount
+def european_call(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    payoff_tree[:, -1] = np.maximum(asset_price[:, -1] - strike, 0)
+    return payoff_tree
+
+
+@european_discount
+def european_put(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    payoff_tree[:, -1] = np.maximum(strike - asset_price[:, -1], 0)
+    return payoff_tree
+
+
+@american_discount
+def american_call(asset_price, rate, strike):
+    return np.maximum(asset_price - strike, 0)
+
+
+@american_discount
+def american_put(asset_price, rate, strike):
+    return np.maximum(strike - asset_price, 0)
+
+
+@european_discount
+def european_binary_call(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    (payoff_tree[:, -1])[asset_price[:, -1] >= strike] = 1
+    return payoff_tree
+
+
+@european_discount
+def european_binary_put(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    (payoff_tree[:, -1])[asset_price[:, -1] <= strike] = 1
+    return payoff_tree
+
+
+@american_discount
+def american_binary_call(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    payoff_tree[asset_price >= strike] = 1
+    return payoff_tree
+
+
+@american_discount
+def american_binary_put(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    payoff_tree[asset_price <= strike] = 1
+    return payoff_tree
+
+
+@european_discount
+def european_asset_or_nothing_call(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    positive_payoff = (asset_price[:, -1])[asset_price[:, -1] >= strike]
+    (payoff_tree[:, -1])[asset_price[:, -1] >= strike] = positive_payoff
+    return payoff_tree
+
+
+@european_discount
+def european_asset_or_nothing_put(asset_price, rate, strike):
+    payoff_tree = np.zeros_like(asset_price)
+    positive_payoff = (asset_price[:, -1])[asset_price[:, -1] <= strike]
+    (payoff_tree[:, -1])[asset_price[:, -1] <= strike] = positive_payoff
+    return payoff_tree
+
+
+@american_discount
+def american_asset_or_nothing_call(asset_price, rate, strike):
+    payoff_tree = np.copy(asset_price)
+    payoff_tree[payoff_tree < strike] = 0
+    return payoff_tree
+
+
+@american_discount
+def american_asset_or_nothing_put(asset_price, strike):
+    payoff_tree = np.copy(asset_price)
+    payoff_tree[payoff_tree > strike] = 0
+    return payoff_tree

@@ -78,7 +78,7 @@ class BinomialTree:
 
     def calculate_payoff_tree(self, payoff_func, **option_params):
         # payoff function must handle 2-D array
-        return payoff_func(self.tree, **option_params)
+        return payoff_func(self.tree, self.rate, **option_params)
 
     def calculate_expectation(self, omega, tree=None):
         try:
