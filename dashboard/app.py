@@ -7,7 +7,7 @@ from dash.dependencies import Input, Output, State
 
 import layout
 import params_labels
-import params_defaults
+import default_params
 from utils import generate_table_content
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -187,9 +187,9 @@ app.layout = html.Div(children=[
     Input('stock-dropdown', 'value')
 )
 def set_stock_defaults(stock):
-    return params_defaults.vol[stock], \
-           params_defaults.drift[stock], \
-           params_defaults.price[stock]
+    return default_params.vol[stock], \
+           default_params.drift[stock], \
+           default_params.price[stock]
 
 
 @app.callback(
