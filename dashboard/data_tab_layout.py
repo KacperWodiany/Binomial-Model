@@ -1,3 +1,4 @@
+
 stock_dropdown = {
     'options': [
                     {'label': 'Microsoft Corporation Common Stock', 'value': 'Microsoft'},
@@ -89,7 +90,6 @@ up_bar_radio = {
                     {'label': 'Out', 'value': 'Out'},
                     {'label': 'In', 'value': 'In'}
     ],
-    'value': 'Out',
     'labelStyle': {'display': 'inline-block'}
 }
 
@@ -103,7 +103,6 @@ low_bar_radio = {
                     {'label': 'Out', 'value': 'Out'},
                     {'label': 'In', 'value': 'In'}
     ],
-    'value': 'Out',
     'labelStyle': {'display': 'inline-block'}
 }
 
@@ -112,4 +111,9 @@ valuate_button = {
     'disabled': True,
     'n_clicks': 0,
     'style': {'border': '2px solid red'}
+}
+
+tree_plot = {
+    'layout': {'name': 'preset'},
+    'style': {'width': '100%', 'height': '400px'},
 }

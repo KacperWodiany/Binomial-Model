@@ -1,183 +1,40 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-# import plotly.express as px
-
 from dash.dependencies import Input, Output, State
 
-import layout
-import params_labels
+import data_tab
 import default_params
-from utils import generate_table_content
+import params_labels
+import plot_tab
+import utils
+
+# import plotly.express as px
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
+app.config['suppress_callback_exceptions'] = True
+
 app.layout = html.Div(children=[
-    html.Div([
-
-        html.Div([
-            html.B('Stock'),
-            html.Br(),
-            dcc.Dropdown(
-                id='stock-dropdown',
-                **layout.stock_dropdown
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.P(),
-
-        html.Div([
-            html.B('Risk-Free Interest Rate'),
-            html.Br(),
-            dcc.Input(
-                id='rate-input',
-                **layout.rate_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.Div([
-            html.B('Volatility'),
-            html.Br(),
-            dcc.Input(
-                id='vol-input',
-                **layout.vol_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.Div([
-            html.B('Drift'),
-            html.Br(),
-            dcc.Input(
-                id='drift-input',
-                **layout.drift_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.P(),
-
-        html.Div([
-            html.B('Number of Trading Days'),
-            html.Br(),
-            dcc.Input(
-                id='trading-days-input',
-                **layout.trading_days_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.Div([
-            html.B('Initial Price'),
-            html.Br(),
-            dcc.Input(
-                id='price-input',
-                **layout.price_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.P(),
-
-        html.Button(
-            id='generate-button',
-            **layout.generate_button
-        ),
-
-        html.P(),
-
-        html.Div([
-            html.B('Option Type'),
-            html.Br(),
-            dcc.Dropdown(
-                id='option-type-dropdown',
-                **layout.option_type_dropdown
-            )
-        ]),
-
-        html.P(),
-
-        html.Div([
-            dcc.RadioItems(
-                id='call-put-radio',
-                **layout.call_put_radio
-            ),
-        ]),
-
-        html.P(),
-
-        html.Div([
-            html.B('Strike'),
-            html.Br(),
-            dcc.Input(
-                id='strike-input',
-                **layout.strike_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.Div([
-            html.B('Maturity'),
-            html.Br(),
-            dcc.Input(
-                id='maturity-input',
-                **layout.maturity_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.P(),
-
-        html.Div([
-            html.B('Upper Barrier'),
-            html.Br(),
-            dcc.Input(
-                id='up-bar-input',
-                **layout.up_bar_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.Div([
-            dcc.RadioItems(
-                id='up-bar-radio',
-                **layout.up_bar_radio
-            ),
-        ], style={'display': 'inline-block'}),
-
-        html.P(),
-
-        html.Div([
-            html.B('Lower Barrier'),
-            html.Br(),
-            dcc.Input(
-                id='low-bar-input',
-                **layout.low_bar_input
-            )
-        ], style={'display': 'inline-block'}),
-
-        html.Div([
-            dcc.RadioItems(
-                id='low-bar-radio',
-                **layout.low_bar_radio
-            ),
-        ], style={'display': 'inline-block'}),
-
-        html.P(),
-
-        html.Button(
-            id='valuate-button',
-            **layout.valuate_button
-        ),
-
-        html.P(),
-
-        html.Div(
-            id='current-option-container',
-            style={'display': 'inline-block'}
-        ),
-
-        html.Div(
-            id='current-stock-container',
-            style={'display': 'inline-block'}
-        )
-    ])
+    dcc.Tabs(id='main-tabs',
+             value='data-tab',
+             children=[
+                 dcc.Tab(label='Data', value='data-tab'),
+                 dcc.Tab(label='Plots', value='plot-tab')
+             ]),
+    html.Div(id='main-tab-content')
 ])
+
+
+@app.callback(Output('main-tab-content', 'children'),
+              Input('main-tabs', 'value'))
+def render_content(tab):
+    if tab == 'data-tab':
+        return data_tab.content
+    elif tab == 'plot-tab':
+        return plot_tab.content
 
 
 @app.callback(
@@ -234,7 +91,8 @@ def enable_generate_button(*stock_params):
 )
 def enable_valuate_button(gen_btn, *option_params):
     border_style = '2px solid '
-    value_is_missing = any((param is None for param in option_params))
+    # We allow barriers to be not specified
+    value_is_missing = any((param is None for param in option_params[:-2]))
     if value_is_missing or gen_btn == 0:
         is_disabled = True
         border_style += 'red'
@@ -271,13 +129,13 @@ def handle_submitting_parameters(gen_btn, val_btn, *states):
     stock_states = states[:nb_stock_params]
     option_states = states[nb_stock_params:]
     if ctx.triggered[0]['prop_id'] == 'generate-button.n_clicks':
-        stock_content = generate_table_content(params_labels.stock, stock_states)
+        stock_content = utils.generate_table_content(params_labels.stock, stock_states)
         option_content = None
     else:
         # when ctx.triggered[0]['prop_id'] == 'valuate-button.n_clicks':
         # need to be changed to elif when new Input added
-        stock_content = generate_table_content(params_labels.stock, stock_states)
-        option_content = generate_table_content(params_labels.option, option_states)
+        stock_content = utils.generate_table_content(params_labels.stock, stock_states)
+        option_content = utils.generate_table_content(params_labels.option, option_states)
 
     stock_container = html.Table(stock_content)
     option_container = html.Table(option_content)
