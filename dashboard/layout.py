@@ -1,4 +1,3 @@
-
 stock_dropdown = {
     'options': [
                     {'label': 'Microsoft Corporation Common Stock', 'value': 'Microsoft'},
@@ -20,7 +19,7 @@ rate_input = {
     'type': 'number',
     'min': 0,
     'max': 1,
-    'value': 0.009
+    'value': 4e-5 * 252
 }
 
 vol_input = {
@@ -40,12 +39,12 @@ trading_days_input = {
     'min': 1,
     'max': 252,
     'step': 1,
-    'value': 126,
-    'style': {'width': '250px'}
+    'value': 10,
+    'style': {'width': '200px'}
 }
 
-generate_button = {
-    'children': 'Generate Prices',
+submit_stock_button = {
+    'children': 'Submit',
     'n_clicks': 0
 }
 
@@ -90,6 +89,7 @@ up_bar_radio = {
                     {'label': 'Out', 'value': 'Out'},
                     {'label': 'In', 'value': 'In'}
     ],
+    'value': 'Out',
     'labelStyle': {'display': 'inline-block'}
 }
 
@@ -103,17 +103,23 @@ low_bar_radio = {
                     {'label': 'Out', 'value': 'Out'},
                     {'label': 'In', 'value': 'In'}
     ],
+    'value': 'Out',
     'labelStyle': {'display': 'inline-block'}
 }
 
-valuate_button = {
-    'children': 'Valuate Option',
+submit_option_button = {
+    'children': 'Submit',
     'disabled': True,
     'n_clicks': 0,
     'style': {'border': '2px solid red'}
 }
 
+generate_button = {
+    'children': 'Generate',
+    'style': {'border': '2px solid green'}
+}
+
 tree_plot = {
     'layout': {'name': 'preset'},
-    'style': {'width': '100%', 'height': '400px'},
+    'style': {'width': '800px', 'height': '800px'}
 }

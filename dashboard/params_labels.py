@@ -1,9 +1,9 @@
 stock = (
     'Stock',
-    'Risk-Free Interest Rate',
-    'Volatility',
-    'Drift',
     'Number of Trading Days',
+    'Drift',
+    'Volatility',
+    'Risk-Free Interest Rate',
     'Initial Price'
 )
 

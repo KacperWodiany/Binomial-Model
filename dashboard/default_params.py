@@ -1,13 +1,14 @@
+from math import sqrt
 vol = {
-    'Microsoft': .005,
-    'Google': .01,
+    'Microsoft': round(1.04e-2 * sqrt(252), 5),
+    'Google': round(1.21e-2 * sqrt(252), 5),
     'custom': .05,
     None: 0
 }
 
 drift = {
-    'Microsoft': .01,
-    'Google': 0,
+    'Microsoft': round(6e-4 * 252, 5),
+    'Google': round(9e-4 * 252, 5),
     'custom': 0,
     None: 0
 }
