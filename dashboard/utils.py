@@ -3,16 +3,16 @@ import numpy as np
 from icecream import ic
 
 
-def adjust_params(drift, vol, rate, scale=252):
-    """Calculate parameters with respect to single day"""
-    return drift / scale, vol / np.sqrt(scale), rate / scale
-
-
 def generate_table_content(names, values):
     """Generate HTML horizontal table for displaying submitted parameters"""
     names = html.Tr([html.Th(name) for name in names])
     content = html.Tr([html.Td(value) for value in values])
     return names, content
+
+
+def adjust_params(drift, vol, rate, scale=252):
+    """Calculate parameters with respect to single day"""
+    return drift / scale, vol / np.sqrt(scale), rate / scale
 
 
 def generate_nodes(prices, nb_periods, scale_x=50, scale_y=35):
@@ -54,6 +54,13 @@ def retrieve_id(cyto_id):
     # Previously I did list(range(-col_id, col_id + 1, 2))[::-1].index(int(row)), but it worked in wrong direction
     row_id = list(range(-col_id, col_id + 1, 2)).index(int(row))
     return row_id, col_id
+
+
+def are_valid_path_ids(row_ids, col_ids):
+    """Check if selected path of prices is correct"""
+    cols_check = all(np.diff(col_ids) == 1) and col_ids[0] == 0
+    rows_check = all(True if diff in (0, 1) else False for diff in np.diff(row_ids))
+    return all((rows_check, cols_check))
 
 
 if __name__ == '__main__':

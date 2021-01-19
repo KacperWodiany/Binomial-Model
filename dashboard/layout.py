@@ -123,3 +123,9 @@ tree_plot = {
     'layout': {'name': 'preset'},
     'style': {'width': '800px', 'height': '800px'}
 }
+
+select_path_button = {
+    'children': 'Select Path',
+    'n_clicks': 0,
+    'style': {'display': 'none'}
+}

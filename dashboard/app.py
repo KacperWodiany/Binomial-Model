@@ -20,6 +20,7 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
+# Global variables, see comments in generate_data callback for more details
 binomial_tree = None
 option_analyzer = None
 
@@ -203,9 +204,22 @@ app.layout = html.Div(children=[
         ], style={'display': 'inline-block'}),
 
         html.Div([
-            dcc.Markdown(
-                id='selected-prices-md'
-            )
+            html.Div([
+                html.Button(
+                    id='select-path-button',
+                    **layout.select_path_button
+                )
+            ], style={'display': 'inline-block'}),
+
+            html.Div([
+                html.Header(
+                    id='selected-prices-display'
+                ),
+
+                html.B(
+                    id='selected-prices-msg'
+                )
+            ], style={'display': 'inline-block', 'margin-left': '3vw'})
         ], style={'display': 'inline-block', 'vertical-align': 'top'})
     ])
 ])
@@ -335,6 +349,7 @@ def enable_generate_button(stock_btn, option_btn):
 
 @app.callback(
     Output('tree-plot', 'elements'),
+    Output('select-path-button', 'style'),
     Input('generate-button', 'n_clicks'),
     State('trading-days-input', 'value'),
     State('drift-input', 'value'),
@@ -353,30 +368,42 @@ def enable_generate_button(stock_btn, option_btn):
 )
 def generate_data(gen_btn, nb_periods, drift, vol, rate, init_price, option, option_type, strike, maturity,
                   up_bar, up_bar_type, low_bar, low_bar_type):
+    # The app will be redesigned and global variables will be removed. "Caching and Signaling" approach will be used.
+    # For now, since there are no multiple sessions launched, global variables don't hurt the app.
     global binomial_tree
     global option_analyzer
     mean, std, rf = utils.adjust_params(drift, vol, rate)
     binomial_tree = BinomialTree(nb_periods, mean, std, rf, init_price)
     binomial_tree.generate()
-    # todo: implement choice of the option (now it is always american put)
+    # implement choice of the option (now it is always american put)
     option_analyzer = Analyzer(binomial_tree, american_put, strike=strike)
-    return utils.generate_nodes(binomial_tree.tree, nb_periods)
+    return utils.generate_nodes(binomial_tree.tree, nb_periods), None
 
 
 @app.callback(
-    Output('selected-prices-md', 'children'),
-    Input('tree-plot', 'selectedNodeData')
+    Output('selected-prices-display', 'children'),
+    Output('selected-prices-msg', 'children'),
+    Input('select-path-button', 'n_clicks'),
+    State('tree-plot', 'selectedNodeData'),
+    prevent_inital_callback=True
 )
-def do_sth_with_selected_prices(data_list):
-    # todo: Make this function do something useful
-    if not data_list:
-        return
+def select_prices(select_btn, selected_nodes):
+    try:
+        ids = [utils.retrieve_id(node['id']) for node in selected_nodes]
+    except TypeError:
+        msg = 'No prices selected' if select_btn > 0 else None
+        selected_prices, selection_msg = None, msg
     else:
-        id_tuples = [utils.retrieve_id(data['id']) for data in data_list]
-        row_ids = np.array([tup[0] for tup in id_tuples])
-        col_ids = np.array([tup[1] for tup in id_tuples])
-        prices_list = binomial_tree.tree[row_ids, col_ids]
-        return "Chosen prices" + "\n*".join(prices_list.astype(str))
+        # sort in case nodes weren't selected in order
+        ids.sort(key=lambda item: item[1])
+        rows_ids, cols_ids = map(list, zip(*ids))
+        if utils.are_valid_path_ids(rows_ids, cols_ids):
+            # If everything work, create methods for yielding prices using ids from BinomialTree object
+            selected_prices, selection_msg = binomial_tree.tree[rows_ids, cols_ids], 'Path selected successfully'
+        else:
+            selected_prices, selection_msg = None, 'Selected prices are not a proper path'
+
+    return selected_prices, selection_msg
 
 
 if __name__ == '__main__':
