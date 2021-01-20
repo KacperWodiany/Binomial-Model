@@ -1,6 +1,8 @@
 import dash_html_components as html
 import numpy as np
+import pandas as pd
 from icecream import ic
+from src.options import american_put
 
 
 def generate_table_content(names, values):
@@ -56,11 +58,20 @@ def retrieve_id(cyto_id):
     return row_id, col_id
 
 
-def are_valid_path_ids(row_ids, col_ids):
-    """Check if selected path of prices is correct"""
-    cols_check = all(np.diff(col_ids) == 1) and col_ids[0] == 0
-    rows_check = all(True if diff in (0, 1) else False for diff in np.diff(row_ids))
-    return all((rows_check, cols_check))
+def determine_payoff_func(*args):
+    """Determine payoff function base on given parameters"""
+    # implement this function to return different payoff functions
+    return american_put
+
+
+def create_plotting_df(days, stock, envelope, excess, mtg):
+    return pd.DataFrame(data={
+        'Day': days,
+        'Stock': stock,
+        'Envelope': envelope,
+        'Excess': excess,
+        'mtg': mtg
+    })
 
 
 if __name__ == '__main__':

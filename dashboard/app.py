@@ -2,9 +2,8 @@ import dash
 import dash_core_components as dcc
 import dash_cytoscape as cyto
 import dash_html_components as html
-import numpy as np
+import plotly.express as px
 from dash.dependencies import Input, Output, State
-from icecream import ic
 
 import default_params
 import layout
@@ -12,17 +11,10 @@ import params_labels
 import utils
 from src.binomial_tree import BinomialTree
 from src.options import Analyzer
-from src.options import american_put
-
-# import plotly.express as px
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-
-# Global variables, see comments in generate_data callback for more details
-binomial_tree = None
-option_analyzer = None
 
 app.layout = html.Div(children=[
     html.Div([
@@ -34,18 +26,35 @@ app.layout = html.Div(children=[
                     id='stock-dropdown',
                     **layout.stock_dropdown
                 )
+            ], style={'display': 'inline-block', 'margin-right': '1vw'}),
+
+            html.Div([
+                html.B('Option Type'),
+                html.Br(),
+                dcc.Dropdown(
+                    id='option-type-dropdown',
+                    **layout.option_type_dropdown
+                )
+            ], style={'display': 'inline-block', 'margin-right': '1vw'}),
+
+            html.Div(id='bermuda-seasons-dropdown-container', children=[
+                html.B('Bermuda seasons'),
+                html.Br(),
+                dcc.Dropdown(
+                    id='bermuda-seasons-dropdown',
+                    **layout.bermuda_seasons_dropdown
+                )
+            ], style={'display': 'none', 'margin-right': '1vw'}),
+
+            html.Div([
+                html.Br(),
+                dcc.Dropdown(
+                    id='call-put-dropdown',
+                    **layout.call_put_dropdown
+                )
             ], style={'display': 'inline-block'}),
 
             html.P(),
-
-            html.Div([
-                html.B('Number of Trading Days'),
-                html.Br(),
-                dcc.Input(
-                    id='trading-days-input',
-                    **layout.trading_days_input
-                )
-            ], style={'display': 'inline-block', 'margin-right': '1vw'}),
 
             html.Div([
                 html.B('Drift'),
@@ -83,43 +92,6 @@ app.layout = html.Div(children=[
                 )
             ], style={'display': 'inline-block', 'margin-right': '1vw'}),
 
-            html.P(),
-
-            html.Button(
-                id='submit-stock-button',
-                **layout.submit_stock_button
-            ),
-
-            html.Div(id='current-stock-container')
-
-        ], style={'display': 'block', 'margin-left': '1vw'}),
-
-        html.Hr(),
-
-        html.Div([
-
-            html.P(),
-
-            html.Div([
-                html.B('Option Type'),
-                html.Br(),
-                dcc.Dropdown(
-                    id='option-type-dropdown',
-                    **layout.option_type_dropdown
-                )
-            ]),
-
-            html.P(),
-
-            html.Div([
-                dcc.RadioItems(
-                    id='call-put-radio',
-                    **layout.call_put_radio
-                )
-            ]),
-
-            html.P(),
-
             html.Div([
                 html.B('Strike'),
                 html.Br(),
@@ -127,7 +99,7 @@ app.layout = html.Div(children=[
                     id='strike-input',
                     **layout.strike_input
                 )
-            ], style={'display': 'inline-block'}),
+            ], style={'display': 'inline-block', 'margin-right': '1vw'}),
 
             html.Div([
                 html.B('Maturity'),
@@ -136,92 +108,53 @@ app.layout = html.Div(children=[
                     id='maturity-input',
                     **layout.maturity_input
                 )
-            ], style={'display': 'inline-block'}),
-
-            html.P(),
-
-            html.Div([
-                html.B('Upper Barrier'),
-                html.Br(),
-                dcc.Input(
-                    id='up-bar-input',
-                    **layout.up_bar_input
-                )
-            ], style={'display': 'inline-block'}),
-
-            html.Div([
-                dcc.RadioItems(
-                    id='up-bar-radio',
-                    **layout.up_bar_radio
-                ),
-            ], style={'display': 'inline-block'}),
-
-            html.P(),
-
-            html.Div([
-                html.B('Lower Barrier'),
-                html.Br(),
-                dcc.Input(
-                    id='low-bar-input',
-                    **layout.low_bar_input
-                )
-            ], style={'display': 'inline-block'}),
-
-            html.Div([
-                dcc.RadioItems(
-                    id='low-bar-radio',
-                    **layout.low_bar_radio
-                )
-            ], style={'display': 'inline-block'}),
-
-            html.P(),
-
-            html.Button(
-                id='submit-option-button',
-                **layout.submit_option_button
-            ),
-
-            html.P(),
-
-            html.Div(id='current-option-container'),
-
-            html.Hr(),
-
-            html.Button(
-                id='generate-button',
-                **layout.generate_button
-            ),
+            ], style={'display': 'inline-block', 'margin-right': '1vw'})
 
         ], style={'display': 'block', 'margin-left': '1vw'}),
 
-        html.P(),
+        html.Div(id='current-stock-container', style={'display': 'block', 'margin-left': '1vw'}),
 
+        html.Div(id='current-option-container', style={'display': 'block', 'margin-left': '1vw'}),
+
+        html.Hr(),
+
+        html.Button(
+            id='generate-button',
+            **layout.generate_button
+        )
+    ]),
+
+    html.P(),
+
+    html.Div([
+        cyto.Cytoscape(
+            id='tree-plot',
+            **layout.tree_plot
+        )
+    ], style={'display': 'inline-block'}),
+
+    html.Div([
         html.Div([
-            cyto.Cytoscape(
-                id='tree-plot',
-                **layout.tree_plot
+            html.Button(
+                id='select-path-button',
+                **layout.select_path_button
             )
         ], style={'display': 'inline-block'}),
 
         html.Div([
-            html.Div([
-                html.Button(
-                    id='select-path-button',
-                    **layout.select_path_button
-                )
-            ], style={'display': 'inline-block'}),
+            html.B(
+                id='selected-price-msg'
+            )
+        ], style={'display': 'inline-block', 'margin-left': '3vw'}),
 
-            html.Div([
-                html.Header(
-                    id='selected-prices-display'
-                ),
+        html.Div(
+            id='excess-plot-container'
+        ),
 
-                html.B(
-                    id='selected-prices-msg'
-                )
-            ], style={'display': 'inline-block', 'margin-left': '3vw'})
-        ], style={'display': 'inline-block', 'vertical-align': 'top'})
-    ])
+        html.Div(
+            id='envelope-plot-container'
+        )
+    ], style={'display': 'inline-block', 'vertical-align': 'top'})
 ])
 
 
@@ -238,15 +171,6 @@ def set_stock_defaults(stock):
 
 
 @app.callback(
-    Output('maturity-input', 'max'),
-    Output('maturity-input', 'value'),
-    Input('trading-days-input', 'value')
-)
-def set_maturity_defaults(trading_days):
-    return trading_days, trading_days
-
-
-@app.callback(
     Output('strike-input', 'value'),
     Input('price-input', 'value')
 )
@@ -255,40 +179,21 @@ def set_strike_defaults(init_price):
 
 
 @app.callback(
-    Output('submit-stock-button', 'disabled'),
-    Output('submit-stock-button', 'style'),
+    Output('generate-button', 'disabled'),
+    Output('generate-button', 'style'),
     Input('stock-dropdown', 'value'),
-    Input('rate-input', 'value'),
-    Input('vol-input', 'value'),
     Input('drift-input', 'value'),
-    Input('trading-days-input', 'value'),
-    Input('price-input', 'value')
-)
-def enable_stock_submission(*stock_params):
-    border_style = '2px solid '
-    value_is_missing = any((param is None for param in stock_params))
-    if value_is_missing:
-        is_disabled = True
-        border_style += 'red'
-    else:
-        is_disabled = False
-        border_style += 'green'
-    return is_disabled, {'border': border_style}
-
-
-@app.callback(
-    Output('submit-option-button', 'disabled'),
-    Output('submit-option-button', 'style'),
+    Input('vol-input', 'value'),
+    Input('rate-input', 'value'),
+    Input('price-input', 'value'),
     Input('option-type-dropdown', 'value'),
+    Input('call-put-dropdown', 'value'),
     Input('strike-input', 'value'),
-    Input('maturity-input', 'value'),
-    Input('up-bar-input', 'value'),
-    Input('low-bar-input', 'value')
+    Input('maturity-input', 'value')
 )
-def enable_option_submission(*option_params):
+def enable_generate_button(*params):
     border_style = '2px solid '
-    # We allow barriers to be not specified
-    value_is_missing = any((param is None for param in option_params[:-2]))
+    value_is_missing = any((param is None for param in params))
     if value_is_missing:
         is_disabled = True
         border_style += 'red'
@@ -300,110 +205,111 @@ def enable_option_submission(*option_params):
 
 @app.callback(
     Output('current-stock-container', 'children'),
-    Input('submit-stock-button', 'n_clicks'),
+    Output('current-option-container', 'children'),
+    Input('generate-button', 'n_clicks'),
+    State('bermuda-seasons-dropdown-container', 'style'),
     State('stock-dropdown', 'value'),
-    State('trading-days-input', 'value'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
     State('rate-input', 'value'),
     State('price-input', 'value'),
-    prevent_initial_call=True
-)
-def submit_stock_params(stock_btn, *states):
-    return utils.generate_table_content(params_labels.stock, states)
-
-
-@app.callback(
-    Output('current-option-container', 'children'),
-    Input('submit-option-button', 'n_clicks'),
     State('option-type-dropdown', 'value'),
-    State('call-put-radio', 'value'),
+    State('bermuda-seasons-dropdown', 'value'),
+    State('call-put-dropdown', 'value'),
     State('strike-input', 'value'),
-    State('maturity-input', 'value'),
-    State('up-bar-input', 'value'),
-    State('up-bar-radio', 'value'),
-    State('low-bar-input', 'value'),
-    State('low-bar-radio', 'value'),
-    prevent_initial_call=True
+    State('maturity-input', 'value')
 )
-def submit_option_params(option_btn, *states):
-    return utils.generate_table_content(params_labels.option, states)
-
-
-@app.callback(
-    Output('generate-button', 'disabled'),
-    Output('generate-button', 'style'),
-    Input('submit-stock-button', 'n_clicks'),
-    Input('submit-option-button', 'n_clicks')
-)
-def enable_generate_button(stock_btn, option_btn):
-    border_style = '2px solid '
-    if stock_btn > 0 and option_btn > 0:
-        is_disabled = False
-        border_style += 'green'
+def display_current_parameters(gen_btn, bermuda_style, *params):
+    stock_params_names = params_labels.stock
+    stock_params = params[:len(stock_params_names)]
+    option_params = params[len(stock_params_names):]
+    if bermuda_style['display'] == 'none':
+        option_params = [option_params[i] for i in range(len(option_params)) if i != 1]
+        option_params_names = params_labels.option
+        option_params_names = [option_params_names[i] for i in range(len(option_params_names)) if i != 1]
     else:
-        is_disabled = True
-        border_style += 'red'
-    return is_disabled, {'border': border_style}
+        option_params_names = params_labels.option
+    if gen_btn > 0:
+        stock_table = utils.generate_table_content(stock_params_names, stock_params)
+        option_table = utils.generate_table_content(option_params_names, option_params)
+    else:
+        stock_table = None
+        option_table = None
+
+    return stock_table, option_table
 
 
 @app.callback(
     Output('tree-plot', 'elements'),
     Output('select-path-button', 'style'),
     Input('generate-button', 'n_clicks'),
-    State('trading-days-input', 'value'),
+    State('drift-input', 'value'),
+    State('vol-input', 'value'),
+    State('rate-input', 'value'),
+    State('price-input', 'value'),
+    State('maturity-input', 'value'),
+    prevent_initial_call=True
+)
+def generate_tree_plot(gen_btn, drift, vol, rate, init_price, nb_periods):
+    mean, std, rf = utils.adjust_params(drift, vol, rate)
+    binomial_tree = BinomialTree(nb_periods, mean, std, rf, init_price)
+    binomial_tree.generate()
+    return utils.generate_nodes(binomial_tree.tree, nb_periods), {'border': '2px solid green'}
+
+
+@app.callback(
+    Output('selected-price-msg', 'children'),
+    Output('excess-plot-container', 'children'),
+    Output('envelope-plot-container', 'children'),
+    Input('select-path-button', 'n_clicks'),
+    State('tree-plot', 'selectedNodeData'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
     State('rate-input', 'value'),
     State('price-input', 'value'),
     State('option-type-dropdown', 'value'),
-    State('call-put-radio', 'value'),
+    State('bermuda-seasons-dropdown', 'value'),
+    State('call-put-dropdown', 'value'),
     State('strike-input', 'value'),
     State('maturity-input', 'value'),
-    State('up-bar-input', 'value'),
-    State('up-bar-radio', 'value'),
-    State('low-bar-input', 'value'),
-    State('low-bar-radio', 'value'),
-    prevent_initial_call=True
+    prevent_inital_call=True
 )
-def generate_data(gen_btn, nb_periods, drift, vol, rate, init_price, option, option_type, strike, maturity,
-                  up_bar, up_bar_type, low_bar, low_bar_type):
-    # The app will be redesigned and global variables will be removed. "Caching and Signaling" approach will be used.
-    # For now, since there are no multiple sessions launched, global variables don't hurt the app.
-    global binomial_tree
-    global option_analyzer
-    mean, std, rf = utils.adjust_params(drift, vol, rate)
-    binomial_tree = BinomialTree(nb_periods, mean, std, rf, init_price)
-    binomial_tree.generate()
-    # implement choice of the option (now it is always american put)
-    option_analyzer = Analyzer(binomial_tree, american_put, strike=strike)
-    return utils.generate_nodes(binomial_tree.tree, nb_periods), None
-
-
-@app.callback(
-    Output('selected-prices-display', 'children'),
-    Output('selected-prices-msg', 'children'),
-    Input('select-path-button', 'n_clicks'),
-    State('tree-plot', 'selectedNodeData'),
-    prevent_inital_callback=True
-)
-def select_prices(select_btn, selected_nodes):
+def select_path_and_draw_plots(select_btn, selected_nodes, drift, vol, rate, init_price,
+                               option, bermuda, option_type, strike, maturity):
+    excess_graph, envelope_graph = None, None
     try:
         ids = [utils.retrieve_id(node['id']) for node in selected_nodes]
     except TypeError:
-        msg = 'No prices selected' if select_btn > 0 else None
-        selected_prices, selection_msg = None, msg
+        selection_msg = 'No prices selected' if select_btn > 0 else None
     else:
         # sort in case nodes weren't selected in order
         ids.sort(key=lambda item: item[1])
-        rows_ids, cols_ids = map(list, zip(*ids))
-        if utils.are_valid_path_ids(rows_ids, cols_ids):
-            # If everything work, create methods for yielding prices using ids from BinomialTree object
-            selected_prices, selection_msg = binomial_tree.tree[rows_ids, cols_ids], 'Path selected successfully'
+        try:
+            rows_ids, cols_ids = map(list, zip(*ids))
+        except ValueError:
+            selection_msg = 'No prices selected' if select_btn > 0 else None
         else:
-            selected_prices, selection_msg = None, 'Selected prices are not a proper path'
-
-    return selected_prices, selection_msg
+            # todo: clean this block of code
+            path = {'rows_ids': rows_ids, 'cols_ids': cols_ids}
+            mean, std, rf = utils.adjust_params(drift, vol, rate)
+            binomial_tree = BinomialTree(maturity, mean, std, rf, init_price)
+            binomial_tree.generate()
+            # for now it is always american put
+            payoff_func = utils.determine_payoff_func(option, option_type, maturity, bermuda)
+            option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike)
+            try:
+                mtg, excess, envelope = option_analyzer.decompose_envelope(path, True)
+            except ValueError:
+                selection_msg = "Selected prices don't create proper path"
+            else:
+                selection_msg = "Path selected successfully"
+                stock = binomial_tree.get_prices(path)
+                df = utils.create_plotting_df(cols_ids, stock, envelope, excess, mtg)
+                excess_fig = px.bar(df, x='Day', y='Excess', width=600, height=400)
+                envelope_fig = px.bar(df, x='Day', y='Envelope', width=600, height=400)
+                excess_graph = dcc.Graph(id='excess-plot', figure=excess_fig)
+                envelope_graph = dcc.Graph(id='envelope-plot', figure=envelope_fig)
+    return selection_msg, excess_graph, envelope_graph
 
 
 if __name__ == '__main__':

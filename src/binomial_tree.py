@@ -107,3 +107,6 @@ class BinomialTree:
         # Arrange matrix of probabilities
         probabilities = np.array([self.q, 1 - self.q])
         return np.sum(probabilities * sorted_path, axis=0)
+
+    def get_prices(self, path):
+        return tree_paths.extract(self.tree, path)

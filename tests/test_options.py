@@ -25,7 +25,7 @@ def test_is_american_put_excess_process_non_decreasing(setup_parameters):
     option = options.american_put
     analyzer = options.Analyzer(tree, option, strike=strike)
 
-    mtg, excess = analyzer.decompose_envelope(omega=omega)
+    mtg, excess = analyzer.decompose_envelope(path=omega)
 
     assert (np.diff(excess) >= 0).all()
 
@@ -35,7 +35,7 @@ def test_is_american_call_excess_process_zero(setup_parameters):
     option = options.american_call
     analyzer = options.Analyzer(tree, option, strike=strike)
 
-    mtg, excess = analyzer.decompose_envelope(omega=omega)
+    mtg, excess = analyzer.decompose_envelope(path=omega)
 
     assert (np.diff(excess) == 0).all()
 

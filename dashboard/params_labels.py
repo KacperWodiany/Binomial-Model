@@ -1,6 +1,5 @@
 stock = (
     'Stock',
-    'Number of Trading Days',
     'Drift',
     'Volatility',
     'Risk-Free Interest Rate',
@@ -9,11 +8,8 @@ stock = (
 
 option = (
     'Option Type',
+    'Bermuda Seasons',
     'Call or Put',
     'Strike',
-    'Maturity',
-    'Upper Barrier',
-    'Upper Barrier Type',
-    'Lower Barrier',
-    'Lower Barrier Type'
+    'Maturity'
 )

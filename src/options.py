@@ -2,7 +2,7 @@ import functools
 
 import numpy as np
 
-from tree_paths import extract as extract_path
+import tree_paths
 from binomial_tree import BinomialTree
 
 
@@ -13,11 +13,11 @@ class Analyzer:
         self.payoff_tree = tree.calculate_payoff_tree(payoff_func, **option_params)
         self.envelope_tree = tree.calculate_envelope_tree(self.payoff_tree)
 
-    def decompose_envelope(self, omega, all_processes=False):
+    def decompose_envelope(self, path, all_processes=False):
         # get envelope for given path
-        envelope = extract_path(self.envelope_tree, omega)
+        envelope = tree_paths.extract(self.envelope_tree, path)
         # calculate its expectations
-        expectations = self.tree.calculate_expectation(omega, tree=self.envelope_tree)
+        expectations = self.tree.calculate_expectation(path, tree=self.envelope_tree)
         # calculate excess and put 0 at the beginning
         excess = np.hstack((0, np.cumsum(envelope[:-1] - expectations)))
         # having excess constructed we can find mtg by adding envelope (U = M -A => M = U + A)
@@ -28,11 +28,11 @@ class Analyzer:
         else:
             return mtg, excess
 
-    def find_stopping_times(self, omega):
+    def find_stopping_times(self, path):
         # get payoff for given path
-        payoff = extract_path(self.payoff_tree, omega)
+        payoff = tree_paths.extract(self.payoff_tree, path)
         # get envelope for given path and its decomposition
-        mtg, excess, envelope = self.decompose_envelope(omega, all_processes=True)
+        mtg, excess, envelope = self.decompose_envelope(path, all_processes=True)
         try:
             # tau_max if there was a moment when excess process raised
             tau_max = np.argwhere(excess > 0)[0]
