@@ -74,8 +74,8 @@ maturity_input = {
 }
 
 generate_button = {
-    'children': 'Generate',
-    'style': {'border': '2px solid green','display': 'block', 'margin-left': '1vw'},
+    'children': 'Generate Prices',
+    'style': {'border': '2px solid green', 'display': 'block', 'margin-left': '1vw'},
     'n_clicks': 0
 }
 
@@ -84,8 +84,14 @@ tree_plot = {
     'style': {'width': '800px', 'height': '800px'}
 }
 
-select_path_button = {
-    'children': 'Select Path',
+submit_path_button = {
+    'children': 'Submit Path',
+    'n_clicks': 0,
+    'style': {'display': 'none'}
+}
+
+submit_endpoints_button = {
+    'children': 'Submit Endpoint',
     'n_clicks': 0,
     'style': {'display': 'none'}
 }

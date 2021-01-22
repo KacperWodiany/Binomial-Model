@@ -2,15 +2,13 @@ import dash
 import dash_core_components as dcc
 import dash_cytoscape as cyto
 import dash_html_components as html
-import plotly.express as px
 from dash.dependencies import Input, Output, State
+from icecream import ic
 
 import default_params
 import layout
 import params_labels
 import utils
-from src.binomial_tree import BinomialTree
-from src.options import Analyzer
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -134,26 +132,38 @@ app.layout = html.Div(children=[
     ], style={'display': 'inline-block'}),
 
     html.Div([
+        html.Div(
+            id='edges-id-container',
+            style={'display': 'none'}
+        ),
+
         html.Div([
             html.Button(
-                id='select-path-button',
-                **layout.select_path_button
+                id='submit-path-button',
+                **layout.submit_path_button
             )
         ], style={'display': 'inline-block'}),
 
         html.Div([
-            html.B(
-                id='selected-price-msg'
+            html.Button(
+                id='submit-endpoints-button',
+                **layout.submit_endpoints_button
+
             )
-        ], style={'display': 'inline-block', 'margin-left': '3vw'}),
+        ], style={'display': 'inline-block', 'margin-left': '1vw'}),
 
-        html.Div(
-            id='excess-plot-container'
-        ),
+        html.P(),
 
-        html.Div(
-            id='envelope-plot-container'
-        )
+        html.Div([
+            html.B(
+                id='submission-msg'
+            )
+        ]),
+
+        html.Div(id='excess-plot-container'),
+
+        html.Div(id='envelope-plot-container')
+
     ], style={'display': 'inline-block', 'vertical-align': 'top'})
 ])
 
@@ -224,10 +234,12 @@ def display_current_parameters(gen_btn, bermuda_style, *params):
     stock_params = params[:len(stock_params_names)]
     option_params = params[len(stock_params_names):]
     if bermuda_style['display'] == 'none':
+        # if bermuda option was not chosen, its parameters are excluded
         option_params = [option_params[i] for i in range(len(option_params)) if i != 1]
         option_params_names = params_labels.option
         option_params_names = [option_params_names[i] for i in range(len(option_params_names)) if i != 1]
     else:
+        # if bermuda option was chosen all parameters are used
         option_params_names = params_labels.option
     if gen_btn > 0:
         stock_table = utils.generate_table_content(stock_params_names, stock_params)
@@ -241,8 +253,10 @@ def display_current_parameters(gen_btn, bermuda_style, *params):
 
 @app.callback(
     Output('tree-plot', 'elements'),
-    Output('select-path-button', 'style'),
+    Output('submit-path-button', 'style'),
+    Output('submit-endpoints-button', 'style'),
     Input('generate-button', 'n_clicks'),
+    Input('edges-id-container', 'children'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
     State('rate-input', 'value'),
@@ -250,18 +264,31 @@ def display_current_parameters(gen_btn, bermuda_style, *params):
     State('maturity-input', 'value'),
     prevent_initial_call=True
 )
-def generate_tree_plot(gen_btn, drift, vol, rate, init_price, nb_periods):
-    mean, std, rf = utils.adjust_params(drift, vol, rate)
-    binomial_tree = BinomialTree(nb_periods, mean, std, rf, init_price)
-    binomial_tree.generate()
-    return utils.generate_nodes(binomial_tree.tree, nb_periods), {'border': '2px solid green'}
+def generate_tree_plot(gen_btn, edges_container, drift, vol, rate, init_price, maturity):
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'] == 'generate-button.n_clicks':
+        # if generate button was clicked only nodes are generated
+        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol)
+        btn_style = {'border': '2px solid green'}
+    elif edges_container is not None:
+        # if endpoint was submitted nodes and respective edges are generated
+        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol)
+        tree_elements.extend(utils.create_endpoint_path_markers(edges_container, maturity))
+        btn_style = {'border': '2px solid green'}
+    else:
+        # All other cases. This one is not hurt layout since prevent_initial_call=True
+        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol)
+        btn_style = {'border': '2px solid green'}
+    return tree_elements, btn_style, btn_style
 
 
 @app.callback(
-    Output('selected-price-msg', 'children'),
+    Output('submission-msg', 'children'),
     Output('excess-plot-container', 'children'),
     Output('envelope-plot-container', 'children'),
-    Input('select-path-button', 'n_clicks'),
+    Output('edges-id-container', 'children'),
+    Input('submit-path-button', 'n_clicks'),
+    Input('submit-endpoints-button', 'n_clicks'),
     State('tree-plot', 'selectedNodeData'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
@@ -272,44 +299,25 @@ def generate_tree_plot(gen_btn, drift, vol, rate, init_price, nb_periods):
     State('call-put-dropdown', 'value'),
     State('strike-input', 'value'),
     State('maturity-input', 'value'),
-    prevent_inital_call=True
+    prevent_initial_call=True
 )
-def select_path_and_draw_plots(select_btn, selected_nodes, drift, vol, rate, init_price,
-                               option, bermuda, option_type, strike, maturity):
-    excess_graph, envelope_graph = None, None
-    try:
-        ids = [utils.retrieve_id(node['id']) for node in selected_nodes]
-    except TypeError:
-        selection_msg = 'No prices selected' if select_btn > 0 else None
+def submit_prices(path_btn, endpoints_btn, selected_nodes, drift, vol, rate, init_price,
+                  option, bermuda, option_type, strike, maturity):
+    ctx = dash.callback_context
+
+    if ctx.triggered[0]['prop_id'] == 'submit-path-button.n_clicks':
+        submission_msg, excess_graph, envelope_graph = utils.submit_path(path_btn, selected_nodes,
+                                                                         drift, vol, rate, init_price,
+                                                                         option, bermuda, option_type, strike, maturity)
+        edges_id = None
     else:
-        # sort in case nodes weren't selected in order
-        ids.sort(key=lambda item: item[1])
-        try:
-            rows_ids, cols_ids = map(list, zip(*ids))
-        except ValueError:
-            selection_msg = 'No prices selected' if select_btn > 0 else None
-        else:
-            # todo: clean this block of code
-            path = {'rows_ids': rows_ids, 'cols_ids': cols_ids}
-            mean, std, rf = utils.adjust_params(drift, vol, rate)
-            binomial_tree = BinomialTree(maturity, mean, std, rf, init_price)
-            binomial_tree.generate()
-            # for now it is always american put
-            payoff_func = utils.determine_payoff_func(option, option_type, maturity, bermuda)
-            option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike)
-            try:
-                mtg, excess, envelope = option_analyzer.decompose_envelope(path, True)
-            except ValueError:
-                selection_msg = "Selected prices don't create proper path"
-            else:
-                selection_msg = "Path selected successfully"
-                stock = binomial_tree.get_prices(path)
-                df = utils.create_plotting_df(cols_ids, stock, envelope, excess, mtg)
-                excess_fig = px.bar(df, x='Day', y='Excess', width=600, height=400)
-                envelope_fig = px.bar(df, x='Day', y='Envelope', width=600, height=400)
-                excess_graph = dcc.Graph(id='excess-plot', figure=excess_fig)
-                envelope_graph = dcc.Graph(id='envelope-plot', figure=envelope_fig)
-    return selection_msg, excess_graph, envelope_graph
+        # if submit endpoint was clicked
+        submission_msg, excess_graph, envelope_graph, edges_id = utils.submit_endpoints(endpoints_btn, selected_nodes,
+                                                                                        drift, vol, rate, init_price,
+                                                                                        option, bermuda, option_type,
+                                                                                        strike, maturity)
+
+    return submission_msg, excess_graph, envelope_graph, edges_id
 
 
 if __name__ == '__main__':
