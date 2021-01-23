@@ -35,14 +35,14 @@ app.layout = html.Div(children=[
                 )
             ], style={'display': 'inline-block', 'margin-right': '1vw'}),
 
-            html.Div(id='bermuda-seasons-dropdown-container', children=[
-                html.B('Bermuda seasons'),
+            html.Div(id='bermuda-freq-dropdown-container', children=[
+                html.B('Bermuda Frequency'),
                 html.Br(),
                 dcc.Dropdown(
-                    id='bermuda-seasons-dropdown',
-                    **layout.bermuda_seasons_dropdown
+                    id='bermuda-freq-dropdown',
+                    **layout.bermuda_freq_dropdown
                 )
-            ], style={'display': 'none', 'margin-right': '1vw'}),
+            ], style={'display': 'none'}),
 
             html.Div([
                 html.Br(),
@@ -189,22 +189,41 @@ def set_strike_defaults(init_price):
 
 
 @app.callback(
+    Output('bermuda-freq-dropdown-container', 'style'),
+    Output('bermuda-freq-dropdown', 'value'),
+    Input('option-type-dropdown', 'value')
+)
+def show_bermuda_seasons_dropdown(option_type):
+    if option_type == 'Bermuda':
+        style = {'display': 'inline-block', 'margin-right': '1vw'}
+        value = 5
+    else:
+        style = {'display': 'none'}
+        value = None
+    return style, value
+
+
+@app.callback(
     Output('generate-button', 'disabled'),
     Output('generate-button', 'style'),
+    Input('bermuda-freq-dropdown', 'value'),
+    Input('option-type-dropdown', 'value'),
     Input('stock-dropdown', 'value'),
     Input('drift-input', 'value'),
     Input('vol-input', 'value'),
     Input('rate-input', 'value'),
     Input('price-input', 'value'),
-    Input('option-type-dropdown', 'value'),
     Input('call-put-dropdown', 'value'),
     Input('strike-input', 'value'),
     Input('maturity-input', 'value')
 )
-def enable_generate_button(*params):
+def enable_generate_button(bermuda, option, *params):
     border_style = '2px solid '
     value_is_missing = any((param is None for param in params))
-    if value_is_missing:
+    if value_is_missing or option is None:
+        is_disabled = True
+        border_style += 'red'
+    elif option == 'Bermuda' and bermuda is None:
         is_disabled = True
         border_style += 'red'
     else:
@@ -217,14 +236,14 @@ def enable_generate_button(*params):
     Output('current-stock-container', 'children'),
     Output('current-option-container', 'children'),
     Input('generate-button', 'n_clicks'),
-    State('bermuda-seasons-dropdown-container', 'style'),
+    State('bermuda-freq-dropdown-container', 'style'),
     State('stock-dropdown', 'value'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
     State('rate-input', 'value'),
     State('price-input', 'value'),
     State('option-type-dropdown', 'value'),
-    State('bermuda-seasons-dropdown', 'value'),
+    State('bermuda-freq-dropdown', 'value'),
     State('call-put-dropdown', 'value'),
     State('strike-input', 'value'),
     State('maturity-input', 'value')
@@ -295,7 +314,7 @@ def generate_tree_plot(gen_btn, edges_container, drift, vol, rate, init_price, m
     State('rate-input', 'value'),
     State('price-input', 'value'),
     State('option-type-dropdown', 'value'),
-    State('bermuda-seasons-dropdown', 'value'),
+    State('bermuda-freq-dropdown', 'value'),
     State('call-put-dropdown', 'value'),
     State('strike-input', 'value'),
     State('maturity-input', 'value'),

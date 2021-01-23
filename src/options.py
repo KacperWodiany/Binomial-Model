@@ -4,6 +4,7 @@ import numpy as np
 
 import tree_paths
 from binomial_tree import BinomialTree
+from icecream import ic
 
 
 class Analyzer:
@@ -35,12 +36,12 @@ class Analyzer:
         mtg, excess, envelope = self.decompose_envelope(path, all_processes=True)
         try:
             # tau_max if there was a moment when excess process raised
-            tau_max = np.argwhere(excess > 0)[0]
+            tau_max = np.squeeze(np.argwhere(excess > 0))[0] - 1
         except IndexError:
             # if excess process =0, then tau_max="number of periods" (for example length of excess process)
             tau_max = len(excess) - 1
 
-        return np.argwhere(payoff == envelope), tau_max
+        return np.squeeze(np.argwhere(payoff == envelope)), tau_max
 
 
 def european_discount(func):
@@ -90,6 +91,28 @@ def american_call(asset_price, strike, **kwargs):
 @american_discount
 def american_put(asset_price, strike, **kwargs):
     return np.maximum(strike - asset_price, 0)
+
+
+@american_discount
+def bermuda_call(asset_price, strike, bermuda_freq, **kwargs):
+    freq_seq = [t for t in range(bermuda_freq, asset_price.shape[1], bermuda_freq)]
+    if freq_seq[-1] != asset_price.shape[1] - 1:
+        freq_seq.append(asset_price.shape[1] - 1)
+    zeros_ids = np.delete(np.arange(asset_price.shape[1]), freq_seq)
+    payoff_tree = np.maximum(asset_price - strike, 0)
+    payoff_tree[:, zeros_ids] = 0
+    return payoff_tree
+
+
+@american_discount
+def bermuda_put(asset_price, strike, bermuda_freq, **kwargs):
+    freq_seq = [t for t in range(bermuda_freq, asset_price.shape[1], bermuda_freq)]
+    if freq_seq[-1] != asset_price.shape[1] - 1:
+        freq_seq.append(asset_price.shape[1] - 1)
+    zeros_ids = np.delete(np.arange(asset_price.shape[1]), freq_seq)
+    payoff_tree = np.maximum(strike - asset_price, 0)
+    payoff_tree[:, zeros_ids] = 0
+    return payoff_tree
 
 
 @european_discount
@@ -148,3 +171,12 @@ def american_asset_or_nothing_put(asset_price, strike, **kwargs):
     payoff_tree = np.copy(asset_price)
     payoff_tree[payoff_tree > strike] = 0
     return payoff_tree
+
+
+if __name__ == '__main__':
+    x = np.arange(64).reshape(8, 8)
+    bermuda_freq = 3
+    rate = 0
+    strike = 30
+    ic(x)
+    ic(bermuda_put(x, bermuda_freq=bermuda_freq, strike=30, rate=0))

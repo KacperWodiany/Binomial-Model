@@ -20,7 +20,9 @@ option_type_dropdown = {
     'value': 'European'
 }
 
-bermuda_seasons_dropdown = {
+bermuda_freq_dropdown = {
+    'options': [{'label': 'every ' + str(x) + ' day(s)', 'value': x} for x in (5, 10, 20, 40)],
+    'style': {'width': '300px'},
     'value': None
 }
 

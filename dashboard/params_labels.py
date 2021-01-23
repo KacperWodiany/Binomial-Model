@@ -8,7 +8,7 @@ stock = (
 
 option = (
     'Option Type',
-    'Bermuda Seasons',
+    'Bermuda Frequency',
     'Call or Put',
     'Strike',
     'Maturity'

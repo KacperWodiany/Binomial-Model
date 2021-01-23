@@ -92,6 +92,7 @@ def _is_valid_endpoint(rows_ids, cols_ids, tree_size):
 
 def submit_path(path_btn, selected_nodes, drift, vol, rate, init_price,
                 option, bermuda, option_type, strike, maturity):
+    """Perform calculations and draw line plots (when whole path was submitted)"""
     excess_graph, envelope_graph = None, None
     try:
         # if selected_nodes is not none
@@ -113,7 +114,7 @@ def submit_path(path_btn, selected_nodes, drift, vol, rate, init_price,
             binomial_tree = BinomialTree(maturity, mean, std, rf, init_price)
             binomial_tree.generate()
             payoff_func = determine_payoff_func(option, option_type)
-            option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike)
+            option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike, bermuda_freq=bermuda)
 
             try:
                 # if path with given ids can be extracted
@@ -124,13 +125,13 @@ def submit_path(path_btn, selected_nodes, drift, vol, rate, init_price,
                 submission_msg = "Path submitted successfully"
 
                 stock = binomial_tree.get_prices(path)
-                df = create_plotting_df(cols_ids, stock, envelope, excess, mtg)
+                stopping_times, tau_max = option_analyzer.find_stopping_times(path)
+                df = create_plotting_df(cols_ids, stock, envelope, excess, mtg,
+                                        stopping_times, tau_max, option, bermuda)
 
-                excess_fig = px.bar(df, x='Day', y='Excess', width=600, height=400)
-                envelope_fig = px.bar(df, x='Day', y='Envelope', width=600, height=400)
+                envelope_fig, excess_fig = _create_figures(df)
 
-                excess_graph = dcc.Graph(id='excess-plot', figure=excess_fig)
-                envelope_graph = dcc.Graph(id='envelope-plot', figure=envelope_fig)
+                envelope_graph, excess_graph = _create_graphs(envelope_fig, excess_fig)
 
     return submission_msg, excess_graph, envelope_graph
 
@@ -146,19 +147,82 @@ def determine_payoff_func(option, option_type):
     return payoff
 
 
-def create_plotting_df(days, stock, envelope, excess, mtg):
+def create_plotting_df(days, stock, envelope, excess, mtg, stopping_times, tau_max, option, bermuda_freq):
     """Create data frame for plotting"""
-    return pd.DataFrame(data={
-        'Day': days,
-        'Stock': stock,
-        'Envelope': envelope,
-        'Excess': excess,
-        'mtg': mtg
-    })
+    if option == 'European':
+        ic()
+        df = pd.DataFrame(data={
+            'Day': days,
+            'Stock': stock,
+            'Envelope': envelope,
+            'Excess': excess,
+            'mtg': mtg
+        })
+    elif option == 'Bermuda':
+        tau = ['Yes' if t in stopping_times else 'No' for t in days]
+        tau[tau_max] = 'Largest Optimal'
+        freq_seq = [t for t in range(bermuda_freq, len(days), bermuda_freq)]
+        if freq_seq[-1] != len(days) - 1:
+            freq_seq.append(len(days) - 1)
+        df = pd.DataFrame(data={
+            'Day': days,
+            'Stock': stock,
+            'Envelope': envelope,
+            'Excess': excess,
+            'mtg': mtg,
+            'Stopping Time': [tau[i] if i in freq_seq else 'Not Applicable' for i in range(len(tau))]
+        })
+    else:
+        tau = ['Yes' if t in stopping_times else 'No' for t in days]
+        tau[tau_max] = 'Largest Optimal'
+        df = pd.DataFrame(data={
+            'Day': days,
+            'Stock': stock,
+            'Envelope': envelope,
+            'Excess': excess,
+            'mtg': mtg,
+            'Stopping Time': tau
+        })
+    return df
+
+
+def _create_figures(df):
+    """Create plots (figures)"""
+    try:
+        excess_fig = px.scatter(df, x='Day', y='Excess', color='Stopping Time', width=800, height=400)
+        envelope_fig = px.scatter(df, x='Day', y='Envelope', color='Stopping Time', width=800, height=400)
+    except ValueError:
+        excess_fig = None  # px.line(df, x='Day', y='Excess', width=800, height=400)
+        envelope_fig = px.line(df, x='Day', y='Envelope', width=800, height=400)
+    else:
+        excess_fig_line = px.line(df, x='Day', y='Excess', width=800, height=400)
+        envelope_fig_line = px.line(df, x='Day', y='Envelope', width=800, height=400)
+        excess_fig.update_traces(marker=dict(size=10,
+                                             line=dict(width=2,
+                                                       color='DarkSlateGrey')),
+                                 selector=dict(mode='markers'))
+        envelope_fig.update_traces(marker=dict(size=10,
+                                               line=dict(width=2,
+                                                         color='DarkSlateGrey')),
+                                   selector=dict(mode='markers'))
+        excess_fig.add_trace(excess_fig_line.data[0])
+        envelope_fig.add_trace(envelope_fig_line.data[0])
+    return envelope_fig, excess_fig
+
+
+def _create_graphs(envelope_fig, excess_fig):
+    """Create graph objects (dash core components)"""
+    if excess_fig is None:
+        excess_graph = None
+    else:
+        excess_graph = dcc.Graph(id='excess-plot', figure=excess_fig)
+    envelope_graph = dcc.Graph(id='envelope-plot', figure=envelope_fig)
+    return envelope_graph, excess_graph
 
 
 def submit_endpoints(endpoints_btn, selected_nodes, drift, vol, rate, init_price,
                      option, bermuda, option_type, strike, maturity):
+    """Perform calculations and draw line plots (when endpoint was submitted)"""
     excess_graph, envelope_graph = None, None
     edges_id = None
     try:
@@ -188,17 +252,18 @@ def submit_endpoints(endpoints_btn, selected_nodes, drift, vol, rate, init_price
                 binomial_tree = BinomialTree(maturity, mean, std, rf, init_price)
                 binomial_tree.generate()
                 payoff_func = determine_payoff_func(option, option_type)
-                option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike)
+                ic(payoff_func)
+                option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike, bermuda_freq=bermuda)
 
                 mtg, excess, envelope = option_analyzer.decompose_envelope(path, all_processes=True)
                 stock = binomial_tree.get_prices(path)
-                df = create_plotting_df(np.arange(0, maturity + 1), stock, envelope, excess, mtg)
+                stopping_times, tau_max = option_analyzer.find_stopping_times(path)
+                df = create_plotting_df(np.arange(0, maturity + 1), stock, envelope, excess, mtg,
+                                        stopping_times, tau_max, option, bermuda)
 
-                excess_fig = px.bar(df, x='Day', y='Excess', width=600, height=400)
-                envelope_fig = px.bar(df, x='Day', y='Envelope', width=600, height=400)
+                envelope_fig, excess_fig = _create_figures(df)
 
-                excess_graph = dcc.Graph(id='excess-plot', figure=excess_fig)
-                envelope_graph = dcc.Graph(id='envelope-plot', figure=envelope_fig)
+                envelope_graph, excess_graph = _create_graphs(envelope_fig, excess_fig)
 
     return submission_msg, excess_graph, envelope_graph, edges_id
 
