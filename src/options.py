@@ -4,21 +4,20 @@ import numpy as np
 
 import tree_paths
 from binomial_tree import BinomialTree
-from icecream import ic
 
 
 class Analyzer:
 
-    def __init__(self, tree: BinomialTree, payoff_func, **option_params):
-        self.tree = tree
-        self.payoff_tree = tree.calculate_payoff_tree(payoff_func, **option_params)
-        self.envelope_tree = tree.calculate_envelope_tree(self.payoff_tree)
+    def __init__(self, prices_tree: BinomialTree, payoff_func, **option_params):
+        self.prices_tree = prices_tree
+        self.payoff_tree = prices_tree.calculate_payoff_tree(payoff_func, **option_params)
+        self.envelope_tree = prices_tree.calculate_envelope_tree(self.payoff_tree)
 
     def decompose_envelope(self, path, all_processes=False):
         # get envelope for given path
         envelope = tree_paths.extract(self.envelope_tree, path)
         # calculate its expectations
-        expectations = self.tree.calculate_expectation(path, tree=self.envelope_tree)
+        expectations = self.prices_tree.calculate_expectation(path, tree=self.envelope_tree)
         # calculate excess and put 0 at the beginning
         excess = np.hstack((0, np.cumsum(envelope[:-1] - expectations)))
         # having excess constructed we can find mtg by adding envelope (U = M -A => M = U + A)
@@ -42,6 +41,24 @@ class Analyzer:
             tau_max = len(excess) - 1
 
         return np.squeeze(np.argwhere(payoff == envelope)), tau_max
+
+    def find_replicating_strategy(self):
+        # matrix of differences between higher and lower price at certain time
+        divisor = -np.diff(self.prices_tree.tree[:, 1:], axis=0)
+        # fill redundant entries with ones to avoid division by 0
+        divisor[np.tril_indices(divisor.shape[0], -1)] = 1
+        # calculate ksi_0
+        ksi_0 = np.array([self._cross_diff(U[i:i + 2], X[i:i + 2])
+                          for U, X in zip(self.envelope_tree[:, 1:].T, self.prices_tree.tree[:, 1:].T)
+                          for i in range(len(U) - 1)])
+        ksi_0 = ksi_0.reshape(self.prices_tree.tree[1:, 1:].shape).T / divisor
+        # calculate ksi_1
+        ksi_1 = -np.diff(self.envelope_tree[:, 1:], axis=0) / divisor
+        return ksi_0, ksi_1
+
+    @staticmethod
+    def _cross_diff(u, x):
+        return u[1] * x[0] - u[0] * x[1]
 
 
 def european_discount(func):
@@ -171,12 +188,3 @@ def american_asset_or_nothing_put(asset_price, strike, **kwargs):
     payoff_tree = np.copy(asset_price)
     payoff_tree[payoff_tree > strike] = 0
     return payoff_tree
-
-
-if __name__ == '__main__':
-    x = np.arange(64).reshape(8, 8)
-    bermuda_freq = 3
-    rate = 0
-    strike = 30
-    ic(x)
-    ic(bermuda_put(x, bermuda_freq=bermuda_freq, strike=30, rate=0))
