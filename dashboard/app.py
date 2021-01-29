@@ -285,6 +285,9 @@ def display_current_parameters(gen_btn, bermuda_style, *params):
 )
 def generate_tree_plot(gen_btn, edges_container, drift, vol, rate, init_price, maturity):
     ctx = dash.callback_context
+    # since we only generate nodes here we set rate=0 to label them with undiscounted prices
+    # we do not remove rate argument to not hurt other functionalities
+    rate = 0
     if ctx.triggered[0]['prop_id'] == 'generate-button.n_clicks':
         # if generate button was clicked only nodes are generated
         tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol)
