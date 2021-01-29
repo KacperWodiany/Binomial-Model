@@ -27,6 +27,15 @@ app.layout = html.Div(children=[
             ], style={'display': 'inline-block', 'margin-right': '1vw'}),
 
             html.Div([
+                html.B('Dividend Frequency'),
+                html.Br(),
+                dcc.Dropdown(
+                    id='dividend-freq-dropdown',
+                    **layout.dividend_freq_dropdown
+                )
+            ], style={'display': 'inline-block', 'margin-right': '1vw'}),
+
+            html.Div([
                 html.B('Option Type'),
                 html.Br(),
                 dcc.Dropdown(
@@ -78,6 +87,15 @@ app.layout = html.Div(children=[
                 dcc.Input(
                     id='rate-input',
                     **layout.rate_input
+                )
+            ], style={'display': 'inline-block', 'margin-right': '1vw'}),
+
+            html.Div(id='dividend-yield-input-container', children=[
+                html.B('Dividend Yield'),
+                html.Br(),
+                dcc.Input(
+                    id='dividend-yield-input',
+                    **layout.dividend_yield_input
                 )
             ], style={'display': 'inline-block', 'margin-right': '1vw'}),
 
@@ -204,14 +222,33 @@ def show_bermuda_seasons_dropdown(option_type):
 
 
 @app.callback(
+    Output('dividend-yield-input-container', 'style'),
+    Output('dividend-yield-input', 'value'),
+    Input('stock-dropdown', 'value'),
+    Input('dividend-freq-dropdown', 'value')
+)
+def show_dividend_yield_input(stock, dividend_freq):
+    if dividend_freq == 0:
+        style = {'display': 'none'}
+        value = 0
+    else:
+        style = {'display': 'inline-block', 'margin-right': '1vw'}
+        value = default_params.dividend_yield[stock]
+
+    return style, value
+
+
+@app.callback(
     Output('generate-button', 'disabled'),
     Output('generate-button', 'style'),
     Input('bermuda-freq-dropdown', 'value'),
     Input('option-type-dropdown', 'value'),
     Input('stock-dropdown', 'value'),
+    Input('dividend-freq-dropdown', 'value'),
     Input('drift-input', 'value'),
     Input('vol-input', 'value'),
     Input('rate-input', 'value'),
+    Input('dividend-yield-input', 'value'),
     Input('price-input', 'value'),
     Input('call-put-dropdown', 'value'),
     Input('strike-input', 'value'),
@@ -238,9 +275,11 @@ def enable_generate_button(bermuda, option, *params):
     Input('generate-button', 'n_clicks'),
     State('bermuda-freq-dropdown-container', 'style'),
     State('stock-dropdown', 'value'),
+    State('dividend-freq-dropdown', 'value'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
     State('rate-input', 'value'),
+    State('dividend-yield-input', 'value'),
     State('price-input', 'value'),
     State('option-type-dropdown', 'value'),
     State('bermuda-freq-dropdown', 'value'),
@@ -276,30 +315,33 @@ def display_current_parameters(gen_btn, bermuda_style, *params):
     Output('submit-endpoints-button', 'style'),
     Input('generate-button', 'n_clicks'),
     Input('edges-id-container', 'children'),
+    State('dividend-freq-dropdown', 'value'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
     State('rate-input', 'value'),
+    State('dividend-yield-input', 'value'),
     State('price-input', 'value'),
     State('maturity-input', 'value'),
     prevent_initial_call=True
 )
-def generate_tree_plot(gen_btn, edges_container, drift, vol, rate, init_price, maturity):
+def generate_tree_plot(gen_btn, edges_container, dividend_freq, drift, vol, rate, dividend_yield, init_price, maturity):
     ctx = dash.callback_context
+    div_periods, div_yield = utils.create_dividend_arrays(dividend_freq, dividend_yield, maturity)
     # since we only generate nodes here we set rate=0 to label them with undiscounted prices
     # we do not remove rate argument to not hurt other functionalities
     rate = 0
     if ctx.triggered[0]['prop_id'] == 'generate-button.n_clicks':
         # if generate button was clicked only nodes are generated
-        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol)
+        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol, div_periods, div_yield)
         btn_style = {'border': '2px solid green'}
     elif edges_container is not None:
         # if endpoint was submitted nodes and respective edges are generated
-        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol)
+        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol, div_periods, div_yield)
         tree_elements.extend(utils.create_endpoint_path_markers(edges_container, maturity))
         btn_style = {'border': '2px solid green'}
     else:
         # All other cases. This one is not hurt layout since prevent_initial_call=True
-        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol)
+        tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol, div_periods, div_yield)
         btn_style = {'border': '2px solid green'}
     return tree_elements, btn_style, btn_style
 
@@ -312,9 +354,11 @@ def generate_tree_plot(gen_btn, edges_container, drift, vol, rate, init_price, m
     Input('submit-path-button', 'n_clicks'),
     Input('submit-endpoints-button', 'n_clicks'),
     State('tree-plot', 'selectedNodeData'),
+    State('dividend-freq-dropdown', 'value'),
     State('drift-input', 'value'),
     State('vol-input', 'value'),
     State('rate-input', 'value'),
+    State('dividend-yield-input', 'value'),
     State('price-input', 'value'),
     State('option-type-dropdown', 'value'),
     State('bermuda-freq-dropdown', 'value'),
@@ -323,21 +367,23 @@ def generate_tree_plot(gen_btn, edges_container, drift, vol, rate, init_price, m
     State('maturity-input', 'value'),
     prevent_initial_call=True
 )
-def submit_prices(path_btn, endpoints_btn, selected_nodes, drift, vol, rate, init_price,
+def submit_prices(path_btn, endpoints_btn, selected_nodes, dividend_freq, drift, vol, rate, dividend_yield, init_price,
                   option, bermuda, option_type, strike, maturity):
     ctx = dash.callback_context
-
+    div_periods, div_yield = utils.create_dividend_arrays(dividend_freq, dividend_yield, maturity)
     if ctx.triggered[0]['prop_id'] == 'submit-path-button.n_clicks':
         submission_msg, excess_graph, envelope_graph = utils.submit_path(path_btn, selected_nodes,
                                                                          drift, vol, rate, init_price,
-                                                                         option, bermuda, option_type, strike, maturity)
+                                                                         option, bermuda, option_type, strike, maturity,
+                                                                         div_periods, div_yield)
         edges_id = None
     else:
         # if submit endpoint was clicked
         submission_msg, excess_graph, envelope_graph, edges_id = utils.submit_endpoints(endpoints_btn, selected_nodes,
                                                                                         drift, vol, rate, init_price,
                                                                                         option, bermuda, option_type,
-                                                                                        strike, maturity)
+                                                                                        strike, maturity,
+                                                                                        div_periods, div_yield)
 
     return submission_msg, excess_graph, envelope_graph, edges_id
 

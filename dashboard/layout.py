@@ -9,6 +9,13 @@ stock_dropdown = {
     'value': 'Microsoft'
 }
 
+dividend_freq_dropdown = {
+    'options': [{'label': 'No Dividend', 'value': 0}] + [{'label': 'every ' + str(x) + ' day(s)', 'value': x}
+                                                         for x in (5, 10, 20, 40)],
+    'style': {'width': '300px'},
+    'value': 0
+}
+
 option_type_dropdown = {
     'options': [
         {'label': 'European', 'value': 'European'},
@@ -52,6 +59,13 @@ rate_input = {
     'min': 0,
     'max': 1,
     'value': 4e-5 * 252
+}
+
+dividend_yield_input = {
+    'type': 'number',
+    'min': 0,
+    'max': 1,
+    'value': 0
 }
 
 price_input = {

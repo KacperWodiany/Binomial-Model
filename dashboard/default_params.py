@@ -8,7 +8,7 @@ vol = {
 
 drift = {
     'Microsoft': round(1.1e-3 * 252, 5),
-    'Google': round(9e-4 * 252, 5),
+    'Google': round(6e-4 * 252, 5),
     'custom': None,
     None: None
 }
@@ -18,4 +18,12 @@ price = {
     'Google': 835.24,
     'custom': None,
     None: None
+}
+
+dividend_yield = {
+    # todo: eventually scale dividend yield
+    'Microsoft': 6 * 1e-3,
+    'Google': 0,
+    'custom': 0,
+    None: 0
 }

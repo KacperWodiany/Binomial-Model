@@ -17,16 +17,18 @@ def generate_table_content(names, values):
     return names, content
 
 
-def generate_nodes(drift, init_price, maturity, rate, vol):
+def generate_nodes(drift, init_price, maturity, rate, vol, div_periods, div_yield):
     """Generate Cytoscape nodes"""
+    # todo: eventually scale dividend yields
     mean, std, rf = adjust_params(drift, vol, rate)
-    binomial_tree = BinomialTree(maturity, mean, std, rf, init_price)
+    binomial_tree = BinomialTree(maturity, mean, std, rf, init_price, div_periods=div_periods, div_yield=div_yield)
     binomial_tree.generate()
     return _generate_nodes_data(binomial_tree.tree, maturity)
 
 
 def adjust_params(drift, vol, rate, scale=252):
     """Calculate parameters with respect to single day"""
+    # todo: if dividend_yield will be scaled, implement scaling here, and change code below the rest of todos
     return drift / scale, vol / np.sqrt(scale), rate / scale
 
 
@@ -71,6 +73,17 @@ def retrieve_id(cyto_id):
     return row_id, col_id
 
 
+def create_dividend_arrays(dividend_freq, dividend_yield, nb_periods):
+    """Create array of periods when dividend is paid"""
+    if dividend_freq == 0:
+        dividend_periods = 0
+        dividend_yields = 0
+    else:
+        dividend_periods = np.arange(dividend_freq, nb_periods+1, dividend_freq)
+        dividend_yields = dividend_yield * np.ones_like(dividend_periods)
+    return dividend_periods, dividend_yields
+
+
 def create_endpoint_path(rows_ids, cols_ids, tree_size):
     """Create path from given endpoints"""
     if not _is_valid_endpoint(rows_ids, cols_ids, tree_size):
@@ -91,7 +104,7 @@ def _is_valid_endpoint(rows_ids, cols_ids, tree_size):
 
 
 def submit_path(path_btn, selected_nodes, drift, vol, rate, init_price,
-                option, bermuda, option_type, strike, maturity):
+                option, bermuda, option_type, strike, maturity, div_periods, div_yield):
     """Perform calculations and draw line plots (when whole path was submitted)"""
     excess_graph, envelope_graph = None, None
     try:
@@ -110,8 +123,10 @@ def submit_path(path_btn, selected_nodes, drift, vol, rate, init_price,
         else:
             path = {'rows_ids': rows_ids, 'cols_ids': cols_ids}
 
+            # todo: eventually scale dividend yield
             mean, std, rf = adjust_params(drift, vol, rate)
-            binomial_tree = BinomialTree(maturity, mean, std, rf, init_price)
+            binomial_tree = BinomialTree(maturity, mean, std, rf, init_price,
+                                         div_periods=div_periods, div_yield=div_yield)
             binomial_tree.generate()
             payoff_func = determine_payoff_func(option, option_type)
             option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike, bermuda_freq=bermuda)
@@ -150,7 +165,6 @@ def determine_payoff_func(option, option_type):
 def create_plotting_df(days, stock, envelope, excess, mtg, stopping_times, tau_max, option, bermuda_freq):
     """Create data frame for plotting"""
     if option == 'European':
-        ic()
         df = pd.DataFrame(data={
             'Day': days,
             'Stock': stock,
@@ -221,7 +235,7 @@ def _create_graphs(envelope_fig, excess_fig):
 
 
 def submit_endpoints(endpoints_btn, selected_nodes, drift, vol, rate, init_price,
-                     option, bermuda, option_type, strike, maturity):
+                     option, bermuda, option_type, strike, maturity, div_periods, div_yield):
     """Perform calculations and draw line plots (when endpoint was submitted)"""
     excess_graph, envelope_graph = None, None
     edges_id = None
@@ -248,11 +262,12 @@ def submit_endpoints(endpoints_btn, selected_nodes, drift, vol, rate, init_price
                 # Path was created successfully so I trust rows_ids is one element list with proper value
                 edges_id = rows_ids[0]
 
+                # todo: eventually scale dividend yield
                 mean, std, rf = adjust_params(drift, vol, rate)
-                binomial_tree = BinomialTree(maturity, mean, std, rf, init_price)
+                binomial_tree = BinomialTree(maturity, mean, std, rf, init_price,
+                                             div_periods=div_periods, div_yield=div_yield)
                 binomial_tree.generate()
                 payoff_func = determine_payoff_func(option, option_type)
-                ic(payoff_func)
                 option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike, bermuda_freq=bermuda)
 
                 mtg, excess, envelope = option_analyzer.decompose_envelope(path, all_processes=True)
