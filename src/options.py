@@ -4,6 +4,8 @@ import numpy as np
 
 import tree_paths
 from binomial_tree import BinomialTree
+from binomial_tree import BinomialTreeForBarrierPut
+from icecream import ic
 
 
 class Analyzer:
@@ -52,6 +54,71 @@ class Analyzer:
                           for U, X in zip(self.envelope_tree[:, 1:].T, self.prices_tree.tree[:, 1:].T)
                           for i in range(len(U) - 1)])
         ksi_0 = ksi_0.reshape(self.prices_tree.tree[1:, 1:].shape).T / divisor
+        # calculate ksi_1
+        ksi_1 = -np.diff(self.envelope_tree[:, 1:], axis=0) / divisor
+        return ksi_0, ksi_1
+
+    @staticmethod
+    def _cross_diff(u, x):
+        return u[1] * x[0] - u[0] * x[1]
+
+
+class BarrierPutAnalyzer:
+
+    def __init__(self, put_prices_tree: BinomialTreeForBarrierPut, bermuda_periods):
+        self.put_prices_tree = put_prices_tree
+        self.payoff_tree = put_prices_tree.calculate_payoff_tree(bermuda_periods)
+        self.envelope_tree = put_prices_tree.calculate_envelope_tree(self.payoff_tree)
+
+    def decompose_envelope(self, path, all_processes=False):
+        # get envelope for given path
+        envelope = tree_paths.extract(self.envelope_tree, path)
+        min_path = self.put_prices_tree.find_min_path()
+        path_diff = np.cumsum(path) - np.cumsum(min_path)
+        try:
+            barrier_id = np.where(path_diff < 0)[0][0]
+        except IndexError:
+            barrier_id = 0
+        else:
+            envelope[barrier_id:] = 0
+        # calculate its expectations
+        expectations = self.put_prices_tree.calculate_expectation(path, tree=self.envelope_tree)
+        if barrier_id != 0:
+            expectations[barrier_id:] = 0
+        # calculate excess and put 0 at the beginning
+        excess = np.hstack((0, np.cumsum(envelope[:-1] - expectations)))
+        # having excess constructed we can find mtg by adding envelope (U = M -A => M = U + A)
+        mtg = envelope + excess
+        # To avoid extracting envelope second time while finding stopping times, returning it is allowed
+        if all_processes:
+            return mtg, excess, envelope
+        else:
+            return mtg, excess
+
+    def find_stopping_times(self, path):
+        # get payoff for given path
+        payoff = tree_paths.extract(self.payoff_tree, path)
+        # get envelope for given path and its decomposition
+        mtg, excess, envelope = self.decompose_envelope(path, all_processes=True)
+        try:
+            # tau_max if there was a moment when excess process raised
+            tau_max = np.squeeze(np.argwhere(excess > 0))[0] - 1
+        except IndexError:
+            # if excess process =0, then tau_max="number of periods" (for example length of excess process)
+            tau_max = len(excess) - 1
+
+        return np.squeeze(np.argwhere(payoff == envelope)), tau_max
+
+    def find_replicating_strategy(self):
+        # matrix of differences between higher and lower price at certain time
+        divisor = -np.diff(self.put_prices_tree.tree[:, 1:], axis=0)
+        # fill redundant entries with ones to avoid division by 0
+        divisor[np.tril_indices(divisor.shape[0], -1)] = 1
+        # calculate ksi_0
+        ksi_0 = np.array([self._cross_diff(U[i:i + 2], X[i:i + 2])
+                          for U, X in zip(self.envelope_tree[:, 1:].T, self.put_prices_tree.tree[:, 1:].T)
+                          for i in range(len(U) - 1)])
+        ksi_0 = ksi_0.reshape(self.put_prices_tree.tree[1:, 1:].shape).T / divisor
         # calculate ksi_1
         ksi_1 = -np.diff(self.envelope_tree[:, 1:], axis=0) / divisor
         return ksi_0, ksi_1

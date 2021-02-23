@@ -127,7 +127,7 @@ class BinomialTreeForBarrierPut(BinomialTree):
         self._fill_tree_boundaries(0, 3 * np.max(self.tree))
 
     def _fill_tree_boundaries(self, min_val, max_val):
-        max_path, min_path = self._find_max_path(), self._find_min_path()
+        max_path, min_path = self._find_max_path(), self.find_min_path()
         max_drops, min_drops = -np.minimum(max_path, 0), -np.minimum(min_path, 0)
         max_rows_ids, min_rows_ids = np.hstack((0, np.cumsum(max_drops))), np.hstack((0, np.cumsum(min_drops)))
         cols_ids = np.arange(self.tree.shape[1])
@@ -148,7 +148,7 @@ class BinomialTreeForBarrierPut(BinomialTree):
             pass
         return max_path.astype(int)
 
-    def _find_min_path(self):
+    def find_min_path(self):
         t = np.arange(1, self.nb_periods + 1)
         dividends = np.zeros_like(t)
         dividends[self.div_periods] = self.div_yield
@@ -168,7 +168,6 @@ class BinomialTreeForBarrierPut(BinomialTree):
             # thus we only need to add 1 not 2 as originally
             omega_sum = -t_min + 1
             for threshold, curr_t in zip(barrier_thresholds[t_min + 1:], list(range(t_min + 1, len(min_path)))):
-                ic(curr_t)
                 if omega_sum - 1 > threshold:
                     omega_sum -= 1
                     # min_path[curr_t] = -1
@@ -189,7 +188,6 @@ class BinomialTreeForBarrierPut(BinomialTree):
         return payoff_tree
 
     def calculate_envelope_tree(self, payoff_tree):
-        ic(payoff_tree.shape)
         envelope_tree = np.copy(payoff_tree)
         discounted_barrier = self.barrier / np.exp(self.rate
                                                    * np.array([np.arange(self.tree.shape[0]), ] * self.tree.shape[0]))
@@ -225,7 +223,7 @@ if __name__ == '__main__':
                             div_yield=dividend_yield, div_periods=dividend_periods)
     put_tree.generate()
     std_tree.generate()
-    ic(put_tree._find_min_path())
+    ic(put_tree.find_min_path())
 
     ic(std_tree.tree[:, -1])
     ic(put_tree.tree[:, -1])

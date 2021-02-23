@@ -6,6 +6,7 @@ from dash.dependencies import Input, Output, State
 from icecream import ic
 
 import default_params
+import heatmaps
 import layout
 import params_labels
 import utils
@@ -143,6 +144,16 @@ app.layout = html.Div(children=[
     html.P(),
 
     html.Div([
+        html.Br(),
+        dcc.Dropdown(
+            id='heatmap-dropdown',
+            **layout.heatmap_dropdown
+        )
+    ]),
+
+    html.Div(id='heatmap-container'),
+
+    html.Div([
         cyto.Cytoscape(
             id='tree-plot',
             **layout.tree_plot
@@ -272,6 +283,8 @@ def enable_generate_button(bermuda, option, *params):
 @app.callback(
     Output('current-stock-container', 'children'),
     Output('current-option-container', 'children'),
+    Output('heatmap-dropdown', 'style'),
+    Output('heatmap-dropdown', 'options'),
     Input('generate-button', 'n_clicks'),
     State('bermuda-freq-dropdown-container', 'style'),
     State('stock-dropdown', 'value'),
@@ -302,11 +315,32 @@ def display_current_parameters(gen_btn, bermuda_style, *params):
     if gen_btn > 0:
         stock_table = utils.generate_table_content(stock_params_names, stock_params)
         option_table = utils.generate_table_content(option_params_names, option_params)
+        heatmap_dropdown_display = {'width': '350px'}
     else:
         stock_table = None
         option_table = None
+        heatmap_dropdown_display = {'display': 'none'}
+    if option_params[0] == 'European':
+        options = [
+            {'label': 'Stock Price', 'value': 'Stock_Price'},
+            {'label': 'Payoff', 'value': 'Payoff'},
+            {'label': 'Snells Envelope', 'value': 'Snell'},
+            {'label': 'Cash in Trading Strategy', 'value': 'ksi_0'},
+            {'label': 'Stock in Trading Strategy', 'value': 'ksi_1'},
+            {'label': 'Excess Process Increment', 'value': 'Difference'}
+        ]
+    else:
+        options = [
+            {'label': 'Stock Price', 'value': 'Stock_Price'},
+            {'label': 'Payoff', 'value': 'Payoff'},
+            {'label': 'Snells Envelope', 'value': 'Snell'},
+            {'label': 'Stopping Time', 'value': 'If_Stopping_Time'},
+            {'label': 'Cash in Trading Strategy', 'value': 'ksi_0'},
+            {'label': 'Stock in Trading Strategy', 'value': 'ksi_1'},
+            {'label': 'Excess Process Increment', 'value': 'Difference'}
+        ]
 
-    return stock_table, option_table
+    return stock_table, option_table, heatmap_dropdown_display, options
 
 
 @app.callback(
@@ -344,6 +378,36 @@ def generate_tree_plot(gen_btn, edges_container, dividend_freq, drift, vol, rate
         tree_elements = utils.generate_nodes(drift, init_price, maturity, rate, vol, div_periods, div_yield)
         btn_style = {'border': '2px solid green'}
     return tree_elements, btn_style, btn_style
+
+
+@app.callback(
+    Output('heatmap-container', 'children'),
+    Input('generate-button', 'n_clicks'),
+    Input('heatmap-dropdown', 'value'),
+    State('dividend-freq-dropdown', 'value'),
+    State('drift-input', 'value'),
+    State('vol-input', 'value'),
+    State('rate-input', 'value'),
+    State('dividend-yield-input', 'value'),
+    State('price-input', 'value'),
+    State('option-type-dropdown', 'value'),
+    State('bermuda-freq-dropdown', 'value'),
+    State('call-put-dropdown', 'value'),
+    State('strike-input', 'value'),
+    State('maturity-input', 'value'),
+    prevent_initial_call=True
+)
+def generate_heatmap(gen_btn, heatmap_param, dividend_freq, drift, vol, rate, dividend_yield, init_price,
+                     option, bermuda, option_type, strike, maturity):
+    if heatmap_param is not None:
+        div_periods, div_yield = utils.create_dividend_arrays(dividend_freq, dividend_yield, maturity)
+        data = utils.generate_heatmap_data(drift, vol, rate, init_price, option, bermuda, option_type,
+                                           strike, maturity, div_periods, div_yield)
+        fig = heatmaps.plot_heatmap(data, heatmap_param, params_labels.heatmap_names[heatmap_param])
+        graph = dcc.Graph(id='heatmap', figure=fig)
+    else:
+        graph = None
+    return graph
 
 
 @app.callback(

@@ -44,7 +44,7 @@ call_put_dropdown = {
 
 drift_input = {
     'type': 'number',
-    'min': 0,
+    'min': -1,
     'max': 1
 }
 
@@ -93,6 +93,20 @@ generate_button = {
     'children': 'Generate Prices',
     'style': {'border': '2px solid green', 'display': 'block', 'margin-left': '1vw'},
     'n_clicks': 0
+}
+
+heatmap_dropdown = {
+    'options': [
+        {'label': 'Stock Price', 'value': 'Stock_Price'},
+        {'label': 'Payoff', 'value': 'Payoff'},
+        {'label': 'Snells Envelope', 'value': 'Snell'},
+        {'label': 'Stopping Time', 'value': 'If_Stopping_Time'},
+        {'label': 'Cash in Trading Strategy', 'value': 'ksi_0'},
+        {'label': 'Stock in Trading Strategy', 'value': 'ksi_1'},
+        {'label': 'Excess Process Increment', 'value': 'Difference'}
+    ],
+    'style': {'width': '350px', 'display': 'none'},
+    'value': 'Snell'
 }
 
 tree_plot = {

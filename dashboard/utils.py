@@ -5,6 +5,9 @@ import pandas as pd
 import plotly.express as px
 from icecream import ic
 
+import heatmaps
+
+
 from payoffs import payoff_dict
 from src.binomial_tree import BinomialTree
 from src.options import Analyzer
@@ -289,3 +292,15 @@ def create_endpoint_path_markers(row_id, tree_size):
     ends_up = tuple(str(row_id + i) + '_' + str(row_id - i) for i in range(1, tree_size - row_id + 1))
     ends = ends_down + ends_up
     return [{'data': {'source': start, 'target': end}} for start, end in zip(ends[:-1], ends[1:])]
+
+
+def generate_heatmap_data(drift, vol, rate, init_price, option, bermuda, option_type,
+                          strike, maturity, div_periods, div_yield):
+    """Generates data for plotting heatmap"""
+    mean, std, rf = adjust_params(drift, vol, rate)
+    binomial_tree = BinomialTree(maturity, mean, std, rf, init_price,
+                                 div_periods=div_periods, div_yield=div_yield)
+    binomial_tree.generate()
+    payoff_func = determine_payoff_func(option, option_type)
+    option_analyzer = Analyzer(binomial_tree, payoff_func, strike=strike, bermuda_freq=bermuda)
+    return heatmaps.create_dataframe(binomial_tree, option_analyzer, option=option, bermuda=bermuda)
